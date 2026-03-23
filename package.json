@@ -1,16 +1,21 @@
 {
-  "name": "cloudtermproject",
+  "name": "lost-found-board",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "A simple local Lost & Found Board built with Node.js, Express, and plain HTML/CSS/JavaScript.",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "install": "npm i express",
-    "start": "node index.js"
+    "start": "node server.js"
   },
+  "keywords": [
+    "express",
+    "lost-and-found",
+    "student-project",
+    "local-app"
+  ],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "multer": "^2.0.2"
   }
 }

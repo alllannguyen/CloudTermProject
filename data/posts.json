@@ -1,0 +1,24 @@
+[
+  {
+    "id": "sample-lost-1",
+    "type": "lost",
+    "title": "Blue Water Bottle",
+    "imageUrl": "/uploads/sample-water-bottle.svg",
+    "description": "Reusable blue water bottle with a sticker on the side.",
+    "location": "Library second floor",
+    "date": "2026-03-18",
+    "ownerEmail": "student1@example.com",
+    "createdAt": "2026-03-19T16:30:00.000Z"
+  },
+  {
+    "id": "sample-found-1",
+    "type": "found",
+    "title": "Black Umbrella",
+    "imageUrl": "/uploads/sample-umbrella.svg",
+    "description": "Small black umbrella found near the student lounge entrance.",
+    "location": "Student lounge entrance",
+    "date": "2026-03-20",
+    "ownerEmail": "student2@example.com",
+    "createdAt": "2026-03-20T11:15:00.000Z"
+  }
+]

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lost & Found Board</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="page-header">
+      <div class="header-content">
+        <p class="eyebrow">School Project Demo</p>
+        <h1>Lost &amp; Found Board</h1>
+        <p class="subtitle">
+          A simple local web app for posting lost and found items on campus.
+        </p>
+      </div>
+    </header>
+
+    <main class="page-layout">
+      <aside class="sidebar">
+        <section class="panel">
+          <h2>Browse Posts</h2>
+          <div class="control-group">
+            <label for="typeFilter">Show</label>
+            <select id="typeFilter">
+              <option value="all">All posts</option>
+              <option value="lost">Lost only</option>
+              <option value="found">Found only</option>
+            </select>
+          </div>
+
+          <div class="control-group">
+            <label for="sortFilter">Sort by</label>
+            <select id="sortFilter">
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+            </select>
+          </div>
+
+          <button id="refreshButton" class="secondary-button" type="button">
+            Refresh Posts
+          </button>
+        </section>
+
+        <section class="panel">
+          <h2>Create Post</h2>
+          <div id="formMessage" class="message hidden" role="status" aria-live="polite"></div>
+
+          <form id="postForm" class="post-form">
+            <div class="control-group">
+              <label for="type">Post Type</label>
+              <select id="type" name="type" required>
+                <option value="lost">Lost</option>
+                <option value="found">Found</option>
+              </select>
+            </div>
+
+            <div class="control-group">
+              <label for="title">Title</label>
+              <input id="title" name="title" type="text" required />
+            </div>
+
+            <div class="control-group">
+              <label for="image">Image of Object</label>
+              <input id="image" name="image" type="file" accept="image/*" required />
+            </div>
+
+            <div class="control-group">
+              <label for="description">Description</label>
+              <textarea id="description" name="description" rows="4" required></textarea>
+            </div>
+
+            <div class="control-group">
+              <label for="location">Approximate Location</label>
+              <input id="location" name="location" type="text" required />
+            </div>
+
+            <div class="control-group">
+              <label for="date">Date</label>
+              <input id="date" name="date" type="date" required />
+            </div>
+
+            <div class="control-group">
+              <label for="ownerEmail">Owner Email</label>
+              <input id="ownerEmail" name="ownerEmail" type="email" required />
+            </div>
+
+            <button class="primary-button" type="submit">Create Post</button>
+          </form>
+        </section>
+      </aside>
+
+      <section class="panel posts-panel">
+        <div class="posts-header">
+          <div>
+            <h2>Posts</h2>
+            <p class="posts-subtitle">View and manage lost or found items stored locally.</p>
+          </div>
+          <div id="postsSummary" class="summary-text"></div>
+        </div>
+
+        <div id="listMessage" class="message hidden" role="status" aria-live="polite"></div>
+        <div id="postsContainer" class="posts-grid"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

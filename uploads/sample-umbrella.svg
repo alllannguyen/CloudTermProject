@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="450" viewBox="0 0 600 450">
+  <rect width="600" height="450" fill="#f3f4f6" />
+  <path d="M150 210 Q300 80 450 210 Z" fill="#2d3748" />
+  <line x1="300" y1="210" x2="300" y2="340" stroke="#4a5568" stroke-width="10" />
+  <path d="M300 340 Q320 360 310 390" fill="none" stroke="#4a5568" stroke-width="10" stroke-linecap="round" />
+  <text x="300" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" fill="#1a202c">
+    Sample Umbrella
+  </text>
+</svg>
