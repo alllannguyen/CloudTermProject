@@ -7,8 +7,21 @@ const formMessage = document.getElementById("formMessage");
 const listMessage = document.getElementById("listMessage");
 const postsSummary = document.getElementById("postsSummary");
 const dateInput = document.getElementById("date");
+const contactModal = document.getElementById("contactModal");
+const contactForm = document.getElementById("contactForm");
+const contactFormMessage = document.getElementById("contactFormMessage");
+const senderEmailInput = document.getElementById("senderEmail");
+const contactMessageInput = document.getElementById("contactMessage");
+const contactModalSubtitle = document.getElementById("contactModalSubtitle");
+const closeContactModalButton = document.getElementById("closeContactModal");
+const cancelContactButton = document.getElementById("cancelContactButton");
+
+const CONTACT_EMAIL_STORAGE_KEY = "lost-found-contact-email";
+
+let activeContactPost = null;
 
 dateInput.value = new Date().toISOString().split("T")[0];
+senderEmailInput.value = window.localStorage.getItem(CONTACT_EMAIL_STORAGE_KEY) || "";
 
 function showMessage(element, text, type) {
   element.textContent = text;
@@ -20,9 +33,15 @@ function hideMessage(element) {
   element.className = "message hidden";
 }
 
-function buildMailtoLink(post) {
+function buildMailtoLink(post, senderEmail, message) {
   const subject = `Inquiry about your ${post.type} item post`;
-  const body = `Hi, I am contacting you about your post for ${post.title}.`;
+  const body = [
+    `Hi, I am contacting you about your post for ${post.title}.`,
+    "",
+    message,
+    "",
+    `Reply to: ${senderEmail}`
+  ].join("\n");
 
   return `mailto:${post.ownerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
@@ -56,6 +75,26 @@ function renderEmptyState(message) {
 
   emptyState.append(title, text);
   postsContainer.appendChild(emptyState);
+}
+
+function openContactModal(post) {
+  activeContactPost = post;
+  contactForm.reset();
+  hideMessage(contactFormMessage);
+
+  const savedEmail = window.localStorage.getItem(CONTACT_EMAIL_STORAGE_KEY) || "";
+  senderEmailInput.value = savedEmail;
+  contactMessageInput.value = `Hi, I am contacting you about your post for ${post.title}.`;
+  contactModalSubtitle.textContent = `This will create an email draft to ${post.ownerEmail}.`;
+  contactModal.classList.remove("hidden");
+  senderEmailInput.focus();
+}
+
+function closeContactModal() {
+  activeContactPost = null;
+  contactForm.reset();
+  hideMessage(contactFormMessage);
+  contactModal.classList.add("hidden");
 }
 
 function renderPosts(posts) {
@@ -99,10 +138,11 @@ function renderPosts(posts) {
     const actions = document.createElement("div");
     actions.className = "post-actions";
 
-    const contactLink = document.createElement("a");
+    const contactLink = document.createElement("button");
     contactLink.className = "card-link";
-    contactLink.href = buildMailtoLink(post);
+    contactLink.type = "button";
     contactLink.textContent = "Contact Owner";
+    contactLink.addEventListener("click", () => openContactModal(post));
 
     const deleteButton = document.createElement("button");
     deleteButton.className = "delete-button";
@@ -198,9 +238,43 @@ async function deletePost(postId) {
   }
 }
 
+function submitContactForm(event) {
+  event.preventDefault();
+
+  if (!activeContactPost) {
+    showMessage(contactFormMessage, "Please choose a post to contact first.", "error");
+    return;
+  }
+
+  const senderEmail = senderEmailInput.value.trim();
+  const message = contactMessageInput.value.trim();
+
+  if (!senderEmail || !message) {
+    showMessage(contactFormMessage, "Please enter your email and a message.", "error");
+    return;
+  }
+
+  window.localStorage.setItem(CONTACT_EMAIL_STORAGE_KEY, senderEmail);
+  window.location.href = buildMailtoLink(activeContactPost, senderEmail, message);
+  closeContactModal();
+}
+
 postForm.addEventListener("submit", createPost);
 typeFilter.addEventListener("change", loadPosts);
 sortFilter.addEventListener("change", loadPosts);
 refreshButton.addEventListener("click", loadPosts);
+contactForm.addEventListener("submit", submitContactForm);
+closeContactModalButton.addEventListener("click", closeContactModal);
+cancelContactButton.addEventListener("click", closeContactModal);
+contactModal.addEventListener("click", (event) => {
+  if (event.target.dataset.closeModal === "true") {
+    closeContactModal();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !contactModal.classList.contains("hidden")) {
+    closeContactModal();
+  }
+});
 
 loadPosts();
