@@ -1,20 +1,33 @@
 {
   "name": "lost-found-board",
   "version": "1.0.0",
-  "description": "A simple local Lost & Found Board built with Node.js, Express, and plain HTML/CSS/JavaScript.",
+  "description": "A cloud-ready Lost & Found Board built with Node.js, Express, AWS S3, DynamoDB, SES, and plain HTML/CSS/JavaScript.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "check": "node --check server.js && node --check src/awsClients.js && node --check src/services/postStore.js && node --check src/services/imageStore.js && node --check src/services/emailService.js && node --check src/validation.js"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "keywords": [
+    "aws",
+    "dynamodb",
     "express",
     "lost-and-found",
-    "student-project",
-    "local-app"
+    "s3",
+    "ses",
+    "student-project"
   ],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.758.0",
+    "@aws-sdk/client-s3": "^3.758.0",
+    "@aws-sdk/client-ses": "^3.758.0",
+    "@aws-sdk/lib-dynamodb": "^3.758.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
     "express": "^5.2.1",
     "multer": "^2.0.2"
   }

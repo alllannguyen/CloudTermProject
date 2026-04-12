@@ -1,74 +1,26 @@
+require("dotenv").config();
+
 const express = require("express");
 const multer = require("multer");
-const fs = require("fs");
 const path = require("path");
-const crypto = require("crypto");
+const cors = require("cors");
+
+const { createPost, deletePost, listPosts, getPost } = require("./src/services/postStore");
+const { deleteImage, uploadImage } = require("./src/services/imageStore");
+const { sendContactEmail, isEmailConfigured } = require("./src/services/emailService");
+const {
+  buildPostFromRequest,
+  formatValidationErrors,
+  validateContactRequest,
+  validatePostImage
+} = require("./src/validation");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-const dataDirectory = path.join(__dirname, "data");
-const uploadsDirectory = path.join(__dirname, "uploads");
-const postsFilePath = path.join(dataDirectory, "posts.json");
 const publicDirectory = path.join(__dirname, "public");
 
-async function ensureStorage() {
-  await fs.promises.mkdir(dataDirectory, { recursive: true });
-  await fs.promises.mkdir(uploadsDirectory, { recursive: true });
-
-  try {
-    await fs.promises.access(postsFilePath);
-  } catch (error) {
-    await fs.promises.writeFile(postsFilePath, "[]");
-  }
-}
-
-async function readPosts() {
-  await ensureStorage();
-  const fileContents = await fs.promises.readFile(postsFilePath, "utf-8");
-
-  try {
-    const parsedPosts = JSON.parse(fileContents);
-    return Array.isArray(parsedPosts) ? parsedPosts : [];
-  } catch (error) {
-    return [];
-  }
-}
-
-async function writePosts(posts) {
-  await fs.promises.writeFile(postsFilePath, JSON.stringify(posts, null, 2));
-}
-
-function getTrimmedValue(value) {
-  return typeof value === "string" ? value.trim() : "";
-}
-
-function removeImageFile(imageUrl) {
-  if (!imageUrl || !imageUrl.startsWith("/uploads/")) {
-    return;
-  }
-
-  const fileName = path.basename(imageUrl);
-  const imagePath = path.join(uploadsDirectory, fileName);
-
-  fs.promises.unlink(imagePath).catch(() => {
-    // If the image is already missing, we do not need to stop the delete flow.
-  });
-}
-
-const storage = multer.diskStorage({
-  destination: (_request, _file, callback) => {
-    callback(null, uploadsDirectory);
-  },
-  filename: (_request, file, callback) => {
-    const extension = path.extname(file.originalname);
-    const uniqueName = `${Date.now()}-${crypto.randomUUID()}${extension}`;
-    callback(null, uniqueName);
-  }
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024
   },
@@ -82,110 +34,184 @@ const upload = multer({
   }
 });
 
-app.use(express.json());
+function normalizeOrigin(origin) {
+  const trimmedOrigin = (origin || "").trim().replace(/\/$/, "");
+
+  if (!trimmedOrigin) {
+    return "";
+  }
+
+  try {
+    return new URL(trimmedOrigin).origin;
+  } catch (_error) {
+    return trimmedOrigin;
+  }
+}
+
+function getAllowedOrigins() {
+  const configuredOrigin = process.env.FRONTEND_ORIGIN || "http://localhost:3000";
+  return configuredOrigin
+    .split(",")
+    .map(normalizeOrigin)
+    .filter(Boolean);
+}
+
+function isSameHostRequest(origin, request) {
+  const requestHost = request.get("host");
+
+  if (!origin || !requestHost) {
+    return false;
+  }
+
+  try {
+    return new URL(origin).host === requestHost;
+  } catch (_error) {
+    return false;
+  }
+}
+
+const corsOptions = (request, callback) => {
+  callback(null, {
+    origin(origin, originCallback) {
+      const allowedOrigins = getAllowedOrigins();
+      const normalizedOrigin = normalizeOrigin(origin);
+
+      // Requests from the same Express server, curl, or health checks usually do not send an Origin header.
+      if (
+        !origin ||
+        allowedOrigins.includes("*") ||
+        allowedOrigins.includes(normalizedOrigin) ||
+        isSameHostRequest(origin, request)
+      ) {
+        originCallback(null, true);
+        return;
+      }
+
+      originCallback(new Error("This frontend origin is not allowed by CORS."));
+    }
+  });
+};
+
+app.use(cors(corsOptions));
+app.use(express.json({ limit: "25kb" }));
 app.use(express.static(publicDirectory));
-app.use("/uploads", express.static(uploadsDirectory));
+
+app.get("/api/health", (_request, response) => {
+  response.json({
+    status: "ok",
+    storage: "dynamodb-s3",
+    emailConfigured: isEmailConfigured()
+  });
+});
 
 app.get("/api/posts", async (request, response) => {
   try {
-    let posts = await readPosts();
-    const { type, sort = "newest" } = request.query;
-
-    if (type === "lost" || type === "found") {
-      posts = posts.filter((post) => post.type === type);
-    }
-
-    posts.sort((firstPost, secondPost) => {
-      const firstDate = new Date(firstPost.createdAt).getTime();
-      const secondDate = new Date(secondPost.createdAt).getTime();
-
-      if (sort === "oldest") {
-        return firstDate - secondDate;
-      }
-
-      return secondDate - firstDate;
+    const posts = await listPosts({
+      type: request.query.type,
+      sort: request.query.sort
     });
 
     response.json(posts);
   } catch (error) {
+    console.error("Could not load posts:", error);
     response.status(500).json({ message: "Could not load posts." });
   }
 });
 
 app.post("/api/posts", upload.single("image"), async (request, response) => {
-  const type = getTrimmedValue(request.body.type).toLowerCase();
-  const title = getTrimmedValue(request.body.title);
-  const description = getTrimmedValue(request.body.description);
-  const location = getTrimmedValue(request.body.location);
-  const date = getTrimmedValue(request.body.date);
-  const ownerEmail = getTrimmedValue(request.body.ownerEmail).toLowerCase();
+  const newPost = buildPostFromRequest(request.body);
+  const validationErrors = formatValidationErrors(newPost);
+  const imageError = validatePostImage(request.file);
+  let uploadedImageKey = "";
 
-  if (!request.file) {
-    response.status(400).json({ message: "An image is required." });
-    return;
+  if (imageError) {
+    validationErrors.push(imageError);
   }
 
-  if (!["lost", "found"].includes(type)) {
-    removeImageFile(`/uploads/${request.file.filename}`);
-    response.status(400).json({ message: "Post type must be lost or found." });
-    return;
-  }
-
-  if (!title || !description || !location || !date || !ownerEmail) {
-    removeImageFile(`/uploads/${request.file.filename}`);
-    response.status(400).json({ message: "Please fill in all required fields." });
-    return;
-  }
-
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-  if (!emailPattern.test(ownerEmail)) {
-    removeImageFile(`/uploads/${request.file.filename}`);
-    response.status(400).json({ message: "Please provide a valid email address." });
+  if (validationErrors.length > 0) {
+    response.status(400).json({ message: validationErrors[0], errors: validationErrors });
     return;
   }
 
   try {
-    const posts = await readPosts();
+    const image = await uploadImage({
+      file: request.file,
+      postId: newPost.id
+    });
+    uploadedImageKey = image.key;
 
-    const newPost = {
-      id: crypto.randomUUID(),
-      type,
-      title,
-      imageUrl: `/uploads/${request.file.filename}`,
-      description,
-      location,
-      date,
-      ownerEmail,
-      createdAt: new Date().toISOString()
+    const savedPost = {
+      ...newPost,
+      imageKey: image.key,
+      imageUrl: image.url
     };
 
-    posts.push(newPost);
-    await writePosts(posts);
-
-    response.status(201).json(newPost);
+    await createPost(savedPost);
+    response.status(201).json(savedPost);
   } catch (error) {
-    removeImageFile(`/uploads/${request.file.filename}`);
+    if (uploadedImageKey) {
+      await deleteImage(uploadedImageKey);
+    }
+
+    console.error("Could not save post:", error);
     response.status(500).json({ message: "Could not save the post." });
+  }
+});
+
+app.post("/api/posts/:id/contact", async (request, response) => {
+  const contactRequest = request.body || {};
+  const validationErrors = validateContactRequest(contactRequest);
+
+  if (validationErrors.length > 0) {
+    response.status(400).json({ message: validationErrors[0], errors: validationErrors });
+    return;
+  }
+
+  if (!isEmailConfigured()) {
+    response.status(503).json({
+      message: "Email service is not configured yet.",
+      fallback: "mailto"
+    });
+    return;
+  }
+
+  try {
+    const post = await getPost(request.params.id);
+
+    if (!post) {
+      response.status(404).json({ message: "Post not found." });
+      return;
+    }
+
+    await sendContactEmail({
+      post,
+      senderEmail: contactRequest.senderEmail,
+      message: contactRequest.message
+    });
+
+    response.json({ message: "Contact email sent successfully." });
+  } catch (error) {
+    console.error("Could not send contact email:", error);
+    response.status(502).json({
+      message: "Could not send the contact email. SES may still be in sandbox mode.",
+      fallback: "mailto"
+    });
   }
 });
 
 app.delete("/api/posts/:id", async (request, response) => {
   try {
-    const posts = await readPosts();
-    const postToDelete = posts.find((post) => post.id === request.params.id);
+    const deletedPost = await deletePost(request.params.id);
 
-    if (!postToDelete) {
+    if (!deletedPost) {
       response.status(404).json({ message: "Post not found." });
       return;
     }
 
-    const updatedPosts = posts.filter((post) => post.id !== request.params.id);
-    await writePosts(updatedPosts);
-    removeImageFile(postToDelete.imageUrl);
-
+    await deleteImage(deletedPost.imageKey);
     response.json({ message: "Post deleted successfully." });
   } catch (error) {
+    console.error("Could not delete post:", error);
     response.status(500).json({ message: "Could not delete the post." });
   }
 });
@@ -193,6 +219,11 @@ app.delete("/api/posts/:id", async (request, response) => {
 app.use((error, _request, response, _next) => {
   if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
     response.status(400).json({ message: "Image must be 5 MB or smaller." });
+    return;
+  }
+
+  if (error && error.message && error.message.includes("CORS")) {
+    response.status(403).json({ message: error.message });
     return;
   }
 
@@ -204,12 +235,11 @@ app.use((error, _request, response, _next) => {
   response.status(500).json({ message: "Unexpected server error." });
 });
 
-ensureStorage()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Lost & Found Board is running on http://localhost:${PORT}`);
-    });
-  })
-  .catch((error) => {
+app.listen(PORT, (error) => {
+  if (error) {
     console.error("Failed to start the server:", error);
-  });
+    process.exit(1);
+  }
+
+  console.log(`Lost & Found Board API is running on http://localhost:${PORT}`);
+});

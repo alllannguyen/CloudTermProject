@@ -1,0 +1,10 @@
+node_modules/
+.env
+.git/
+.gitignore
+.ebignore
+data/
+uploads/
+CloudTermProject_MileStone.zip
+Presentation.pdf
+npm-debug.log

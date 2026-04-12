@@ -7,8 +7,14 @@ const formMessage = document.getElementById("formMessage");
 const listMessage = document.getElementById("listMessage");
 const postsSummary = document.getElementById("postsSummary");
 const dateInput = document.getElementById("date");
+const appConfig = window.LOST_FOUND_CONFIG || {};
+const apiBaseUrl = (appConfig.API_BASE_URL || "").replace(/\/$/, "");
 
 dateInput.value = new Date().toISOString().split("T")[0];
+
+function getApiUrl(path) {
+  return `${apiBaseUrl}${path}`;
+}
 
 function showMessage(element, text, type) {
   element.textContent = text;
@@ -25,6 +31,10 @@ function buildMailtoLink(post) {
   const body = `Hi, I am contacting you about your post for ${post.title}.`;
 
   return `mailto:${post.ownerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
+function openMailFallback(post) {
+  window.location.href = buildMailtoLink(post);
 }
 
 function formatPostType(type) {
@@ -99,10 +109,11 @@ function renderPosts(posts) {
     const actions = document.createElement("div");
     actions.className = "post-actions";
 
-    const contactLink = document.createElement("a");
-    contactLink.className = "card-link";
-    contactLink.href = buildMailtoLink(post);
-    contactLink.textContent = "Contact Owner";
+    const contactButton = document.createElement("button");
+    contactButton.className = "card-link";
+    contactButton.type = "button";
+    contactButton.textContent = "Contact Owner";
+    contactButton.addEventListener("click", () => contactOwner(post));
 
     const deleteButton = document.createElement("button");
     deleteButton.className = "delete-button";
@@ -110,7 +121,7 @@ function renderPosts(posts) {
     deleteButton.textContent = "Delete";
     deleteButton.addEventListener("click", () => deletePost(post.id));
 
-    actions.append(contactLink, deleteButton);
+    actions.append(contactButton, deleteButton);
     content.append(title, badge, description, location, date, email, createdAt, actions);
     card.append(image, content);
     postsContainer.appendChild(card);
@@ -129,7 +140,7 @@ async function loadPosts() {
   params.set("sort", sortFilter.value);
 
   try {
-    const response = await fetch(`/api/posts?${params.toString()}`);
+    const response = await fetch(getApiUrl(`/api/posts?${params.toString()}`));
     const posts = await response.json();
 
     if (!response.ok) {
@@ -151,7 +162,7 @@ async function createPost(event) {
   const formData = new FormData(postForm);
 
   try {
-    const response = await fetch("/api/posts", {
+    const response = await fetch(getApiUrl("/api/posts"), {
       method: "POST",
       body: formData
     });
@@ -171,6 +182,48 @@ async function createPost(event) {
   }
 }
 
+async function contactOwner(post) {
+  const senderEmail = window.prompt("Enter your email so the owner can reply:");
+
+  if (senderEmail === null) {
+    return;
+  }
+
+  const message = window.prompt("Optional message to include:", "") || "";
+  hideMessage(listMessage);
+
+  try {
+    const response = await fetch(getApiUrl(`/api/posts/${post.id}/contact`), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        senderEmail,
+        message
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      const error = new Error(result.message || "Could not contact owner.");
+      error.fallback = result.fallback;
+      throw error;
+    }
+
+    showMessage(listMessage, "Contact email sent successfully.", "success");
+  } catch (error) {
+    if (error.fallback === "mailto") {
+      showMessage(listMessage, `${error.message} Opening your email app instead.`, "error");
+      openMailFallback(post);
+      return;
+    }
+
+    showMessage(listMessage, error.message, "error");
+  }
+}
+
 async function deletePost(postId) {
   const confirmed = window.confirm("Delete this post?");
 
@@ -181,7 +234,7 @@ async function deletePost(postId) {
   hideMessage(listMessage);
 
   try {
-    const response = await fetch(`/api/posts/${postId}`, {
+    const response = await fetch(getApiUrl(`/api/posts/${postId}`), {
       method: "DELETE"
     });
 
