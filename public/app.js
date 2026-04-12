@@ -26,9 +26,15 @@ function hideMessage(element) {
   element.className = "message hidden";
 }
 
-function buildMailtoLink(post) {
+function buildMailtoLink(post, senderEmail, message) {
   const subject = `Inquiry about your ${post.type} item post`;
-  const body = `Hi, I am contacting you about your post for ${post.title}.`;
+  const body = [
+    `Hi, I am contacting you about your post for ${post.title}.`,
+    "",
+    message,
+    "",
+    `Reply to: ${senderEmail}`
+  ].join("\n");
 
   return `mailto:${post.ownerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
@@ -66,6 +72,26 @@ function renderEmptyState(message) {
 
   emptyState.append(title, text);
   postsContainer.appendChild(emptyState);
+}
+
+function openContactModal(post) {
+  activeContactPost = post;
+  contactForm.reset();
+  hideMessage(contactFormMessage);
+
+  const savedEmail = window.localStorage.getItem(CONTACT_EMAIL_STORAGE_KEY) || "";
+  senderEmailInput.value = savedEmail;
+  contactMessageInput.value = `Hi, I am contacting you about your post for ${post.title}.`;
+  contactModalSubtitle.textContent = `This will create an email draft to ${post.ownerEmail}.`;
+  contactModal.classList.remove("hidden");
+  senderEmailInput.focus();
+}
+
+function closeContactModal() {
+  activeContactPost = null;
+  contactForm.reset();
+  hideMessage(contactFormMessage);
+  contactModal.classList.add("hidden");
 }
 
 function renderPosts(posts) {
@@ -251,9 +277,43 @@ async function deletePost(postId) {
   }
 }
 
+function submitContactForm(event) {
+  event.preventDefault();
+
+  if (!activeContactPost) {
+    showMessage(contactFormMessage, "Please choose a post to contact first.", "error");
+    return;
+  }
+
+  const senderEmail = senderEmailInput.value.trim();
+  const message = contactMessageInput.value.trim();
+
+  if (!senderEmail || !message) {
+    showMessage(contactFormMessage, "Please enter your email and a message.", "error");
+    return;
+  }
+
+  window.localStorage.setItem(CONTACT_EMAIL_STORAGE_KEY, senderEmail);
+  window.location.href = buildMailtoLink(activeContactPost, senderEmail, message);
+  closeContactModal();
+}
+
 postForm.addEventListener("submit", createPost);
 typeFilter.addEventListener("change", loadPosts);
 sortFilter.addEventListener("change", loadPosts);
 refreshButton.addEventListener("click", loadPosts);
+contactForm.addEventListener("submit", submitContactForm);
+closeContactModalButton.addEventListener("click", closeContactModal);
+cancelContactButton.addEventListener("click", closeContactModal);
+contactModal.addEventListener("click", (event) => {
+  if (event.target.dataset.closeModal === "true") {
+    closeContactModal();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !contactModal.classList.contains("hidden")) {
+    closeContactModal();
+  }
+});
 
 loadPosts();

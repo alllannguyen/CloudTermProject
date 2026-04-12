@@ -20,5 +20,16 @@
     "date": "2026-03-20",
     "ownerEmail": "student2@example.com",
     "createdAt": "2026-03-20T11:15:00.000Z"
+  },
+  {
+    "id": "528ddf72-6564-4df7-b65d-311e9eaeade6",
+    "type": "found",
+    "title": "fsdfsdfsdf",
+    "imageUrl": "/uploads/1774243200402-9f098ce6-2790-497c-bd20-45e93d992662.webp",
+    "description": "sdfsdfsfdf",
+    "location": "sffsdfsf",
+    "date": "2026-03-23",
+    "ownerEmail": "test@gmail.com",
+    "createdAt": "2026-03-23T05:20:00.405Z"
   }
 ]
