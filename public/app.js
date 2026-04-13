@@ -7,10 +7,22 @@ const formMessage = document.getElementById("formMessage");
 const listMessage = document.getElementById("listMessage");
 const postsSummary = document.getElementById("postsSummary");
 const dateInput = document.getElementById("date");
+const contactModal = document.getElementById("contactModal");
+const contactForm = document.getElementById("contactForm");
+const contactFormMessage = document.getElementById("contactFormMessage");
+const senderEmailInput = document.getElementById("senderEmail");
+const contactMessageInput = document.getElementById("contactMessage");
+const contactModalSubtitle = document.getElementById("contactModalSubtitle");
+const closeContactModalButton = document.getElementById("closeContactModal");
+const cancelContactButton = document.getElementById("cancelContactButton");
 const appConfig = window.LOST_FOUND_CONFIG || {};
 const apiBaseUrl = (appConfig.API_BASE_URL || "").replace(/\/$/, "");
+const CONTACT_EMAIL_STORAGE_KEY = "lost-found-contact-email";
+
+let activeContactPost = null;
 
 dateInput.value = new Date().toISOString().split("T")[0];
+senderEmailInput.value = window.localStorage.getItem(CONTACT_EMAIL_STORAGE_KEY) || "";
 
 function getApiUrl(path) {
   return `${apiBaseUrl}${path}`;
@@ -31,16 +43,16 @@ function buildMailtoLink(post, senderEmail, message) {
   const body = [
     `Hi, I am contacting you about your post for ${post.title}.`,
     "",
-    message,
+    message || "",
     "",
-    `Reply to: ${senderEmail}`
+    senderEmail ? `Reply to: ${senderEmail}` : ""
   ].join("\n");
 
   return `mailto:${post.ownerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
-function openMailFallback(post) {
-  window.location.href = buildMailtoLink(post);
+function openMailFallback(post, senderEmail, message) {
+  window.location.href = buildMailtoLink(post, senderEmail, message);
 }
 
 function formatPostType(type) {
@@ -82,7 +94,7 @@ function openContactModal(post) {
   const savedEmail = window.localStorage.getItem(CONTACT_EMAIL_STORAGE_KEY) || "";
   senderEmailInput.value = savedEmail;
   contactMessageInput.value = `Hi, I am contacting you about your post for ${post.title}.`;
-  contactModalSubtitle.textContent = `This will create an email draft to ${post.ownerEmail}.`;
+  contactModalSubtitle.textContent = `This will send an email to ${post.ownerEmail}.`;
   contactModal.classList.remove("hidden");
   senderEmailInput.focus();
 }
@@ -139,7 +151,7 @@ function renderPosts(posts) {
     contactButton.className = "card-link";
     contactButton.type = "button";
     contactButton.textContent = "Contact Owner";
-    contactButton.addEventListener("click", () => contactOwner(post));
+    contactButton.addEventListener("click", () => openContactModal(post));
 
     const deleteButton = document.createElement("button");
     deleteButton.className = "delete-button";
@@ -208,48 +220,6 @@ async function createPost(event) {
   }
 }
 
-async function contactOwner(post) {
-  const senderEmail = window.prompt("Enter your email so the owner can reply:");
-
-  if (senderEmail === null) {
-    return;
-  }
-
-  const message = window.prompt("Optional message to include:", "") || "";
-  hideMessage(listMessage);
-
-  try {
-    const response = await fetch(getApiUrl(`/api/posts/${post.id}/contact`), {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        senderEmail,
-        message
-      })
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      const error = new Error(result.message || "Could not contact owner.");
-      error.fallback = result.fallback;
-      throw error;
-    }
-
-    showMessage(listMessage, "Contact email sent successfully.", "success");
-  } catch (error) {
-    if (error.fallback === "mailto") {
-      showMessage(listMessage, `${error.message} Opening your email app instead.`, "error");
-      openMailFallback(post);
-      return;
-    }
-
-    showMessage(listMessage, error.message, "error");
-  }
-}
-
 async function deletePost(postId) {
   const confirmed = window.confirm("Delete this post?");
 
@@ -277,7 +247,7 @@ async function deletePost(postId) {
   }
 }
 
-function submitContactForm(event) {
+async function submitContactForm(event) {
   event.preventDefault();
 
   if (!activeContactPost) {
@@ -294,8 +264,43 @@ function submitContactForm(event) {
   }
 
   window.localStorage.setItem(CONTACT_EMAIL_STORAGE_KEY, senderEmail);
-  window.location.href = buildMailtoLink(activeContactPost, senderEmail, message);
-  closeContactModal();
+  hideMessage(listMessage);
+  showMessage(contactFormMessage, "Sending contact email...", "success");
+
+  try {
+    const response = await fetch(getApiUrl(`/api/posts/${activeContactPost.id}/contact`), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        senderEmail,
+        message
+      })
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      const error = new Error(result.message || "Could not contact owner.");
+      error.fallback = result.fallback;
+      throw error;
+    }
+
+    closeContactModal();
+    showMessage(listMessage, "Contact email sent successfully.", "success");
+  } catch (error) {
+    if (error.fallback === "mailto") {
+      const fallbackMessage = `${error.message} Opening your email app instead.`;
+      const fallbackPost = activeContactPost;
+      closeContactModal();
+      showMessage(listMessage, fallbackMessage, "error");
+      openMailFallback(fallbackPost, senderEmail, message);
+      return;
+    }
+
+    showMessage(contactFormMessage, error.message, "error");
+  }
 }
 
 postForm.addEventListener("submit", createPost);

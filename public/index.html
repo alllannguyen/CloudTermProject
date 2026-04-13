@@ -105,6 +105,41 @@
       </section>
     </main>
 
+    <div id="contactModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="contactModalTitle">
+      <div class="modal-backdrop" data-close-modal="true"></div>
+      <section class="modal-panel">
+        <div class="modal-header">
+          <div>
+            <p class="modal-eyebrow">Contact Owner</p>
+            <h2 id="contactModalTitle">Send a Message</h2>
+          </div>
+          <button id="closeContactModal" class="icon-button" type="button" aria-label="Close contact form">
+            x
+          </button>
+        </div>
+
+        <p id="contactModalSubtitle" class="modal-subtitle"></p>
+        <div id="contactFormMessage" class="message hidden" role="status" aria-live="polite"></div>
+
+        <form id="contactForm" class="post-form">
+          <div class="control-group">
+            <label for="senderEmail">Your Email</label>
+            <input id="senderEmail" name="senderEmail" type="email" required />
+          </div>
+
+          <div class="control-group">
+            <label for="contactMessage">Message</label>
+            <textarea id="contactMessage" name="message" rows="5" required></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button id="cancelContactButton" class="secondary-button" type="button">Cancel</button>
+            <button class="primary-button" type="submit">Send Message</button>
+          </div>
+        </form>
+      </section>
+    </div>
+
     <script src="config.js"></script>
     <script src="app.js"></script>
   </body>
